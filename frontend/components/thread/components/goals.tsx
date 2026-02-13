@@ -13,38 +13,25 @@ import {
     IconChecklist,
     IconChevronRight,
     IconLoader2,
-    IconNorthStar,
 } from '@tabler/icons-react';
 import { memo, useEffect, useMemo } from 'react';
 const getTitle = (threadItem: ThreadItem) => {
-    if (threadItem.mode === ChatMode.Deep) {
+    if (threadItem.mode === ChatMode.Research) {
         return 'Research';
-    }
-    if ([ChatMode.DEEPSEEK_R1].includes(threadItem.mode)) {
-        return 'Thinking';
-    }
-    if (threadItem.mode === ChatMode.Pro) {
-        return 'Pro Search';
     }
     return 'Steps';
 };
 
 const getIcon = (threadItem: ThreadItem) => {
-    if (threadItem.mode === ChatMode.Deep) {
+    if (threadItem.mode === ChatMode.Research) {
         return <IconAtom size={16} strokeWidth={2} className="text-muted-foreground" />;
-    }
-    if (threadItem.mode === ChatMode.Pro) {
-        return <IconNorthStar size={16} strokeWidth={2} className="text-muted-foreground" />;
     }
     return <IconChecklist size={16} strokeWidth={2} className="text-muted-foreground" />;
 };
 
 const getNote = (threadItem: ThreadItem) => {
-    if (threadItem.mode === ChatMode.Deep) {
-        return 'This process takes approximately 15 minutes. Please keep the tab open during this time.';
-    }
-    if (threadItem.mode === ChatMode.Pro) {
-        return 'This process takes approximately 5 minutes. Please keep the tab open during this time.';
+    if (threadItem.mode === ChatMode.Research) {
+        return 'Multi-source research in progress. Please keep the tab open.';
     }
     return '';
 };

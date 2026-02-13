@@ -7,5 +7,7 @@ export * from './question-prompt';
 export * from './source-grid';
 export * from './source-list';
 export * from './tool-call';
-
 export * from './tool-result';
+export * from './research-steps';
+export * from './source-card';
+export * from './conflict-note';

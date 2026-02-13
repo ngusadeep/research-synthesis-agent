@@ -1,6 +1,7 @@
 'use client';
 import { useChatStore } from '@/store';
 import {
+    Badge,
     Button,
     Command,
     CommandInput,
@@ -10,12 +11,22 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui';
-import { IconClock, IconPlus } from '@tabler/icons-react';
+import { IconAtom, IconClock, IconPlus } from '@tabler/icons-react';
 import { CommandItem } from 'cmdk';
 import { MoreHorizontal } from 'lucide-react';
 import moment from 'moment';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+type BackendReport = {
+    id: string;
+    query: string;
+    summary: string;
+    source_count: number;
+    created_at: string;
+};
 
 export default function ThreadsPage() {
     const threads = useChatStore(state => state.threads);
@@ -26,6 +37,29 @@ export default function ThreadsPage() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [title, setTitle] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Backend research reports
+    const [backendReports, setBackendReports] = useState<BackendReport[]>([]);
+    const [isLoadingReports, setIsLoadingReports] = useState(false);
+
+    const fetchBackendReports = useCallback(async () => {
+        setIsLoadingReports(true);
+        try {
+            const res = await fetch(`${API_URL}/api/history?limit=50`);
+            if (res.ok) {
+                const data = await res.json();
+                setBackendReports(data.items || []);
+            }
+        } catch (err) {
+            console.warn('Could not fetch backend reports:', err);
+        } finally {
+            setIsLoadingReports(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchBackendReports();
+    }, [fetchBackendReports]);
 
     useEffect(() => {
         if (editingId && inputRef.current) {
@@ -79,6 +113,64 @@ export default function ThreadsPage() {
                 <h3 className="font-clash text-brand text-2xl font-semibold tracking-wide">
                     Chat History
                 </h3>
+
+                {/* Backend Research Reports */}
+                {backendReports.length > 0 && (
+                    <div className="mb-4 w-full">
+                        <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wider">
+                            Research Reports
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            {backendReports.map(report => (
+                                <div
+                                    key={report.id}
+                                    className="bg-tertiary hover:bg-quaternary group relative flex w-full cursor-pointer flex-col items-start rounded-md p-4 transition-all duration-200"
+                                    onClick={() => push(`/chat/${report.id}`)}
+                                >
+                                    <div className="flex w-full flex-row items-start justify-between">
+                                        <div className="flex flex-col items-start gap-1">
+                                            <div className="flex flex-row items-center gap-2">
+                                                <IconAtom
+                                                    size={14}
+                                                    strokeWidth={2}
+                                                    className="text-muted-foreground"
+                                                />
+                                                <p className="line-clamp-2 text-sm font-medium">
+                                                    {report.query}
+                                                </p>
+                                            </div>
+                                            {report.summary && (
+                                                <p className="text-muted-foreground/70 line-clamp-1 text-xs">
+                                                    {report.summary}
+                                                </p>
+                                            )}
+                                            <div className="flex flex-row items-center gap-2">
+                                                <p className="text-muted-foreground/50 flex flex-row items-center gap-1 text-xs">
+                                                    <IconClock size={12} strokeWidth="2" />
+                                                    {moment(report.created_at).fromNow()}
+                                                </p>
+                                                {report.source_count > 0 && (
+                                                    <Badge
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="text-[10px]"
+                                                    >
+                                                        {report.source_count} sources
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Local Thread History */}
+                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                    Local Threads
+                </p>
                 <Command className="bg-secondary !max-h-auto w-full">
                     <CommandInput
                         placeholder="Search"
