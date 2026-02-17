@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from typing import Literal
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
+from core.checkpoint_serde import SafeCheckpointSerde
 from core.state import ResearchState
 from agents.planner import planner_node
 from agents.worker import worker_node
@@ -59,4 +63,28 @@ async def get_checkpointer():
     """Return Postgres checkpointer (async context manager). Call await checkpointer.setup() once inside the context."""
     if not settings.database_url:
         raise ValueError("DATABASE_URL is required for graph checkpoints")
-    return AsyncPostgresSaver.from_conn_string(settings.database_url)
+    return AsyncPostgresSaver.from_conn_string(
+        settings.database_url, serde=SafeCheckpointSerde()
+    )
+
+
+@asynccontextmanager
+async def get_checkpointer_from_pool():
+    """Async context manager: pool + checkpointer for workers (avoids 'connection is closed').
+    Use: async with get_checkpointer_from_pool() as (pool, checkpointer): ..."""
+    if not settings.database_url:
+        raise ValueError("DATABASE_URL is required for graph checkpoints")
+    pool = AsyncConnectionPool(
+        conninfo=settings.database_url,
+        min_size=1,
+        max_size=4,
+        max_idle=300,
+        kwargs={
+            "autocommit": True,
+            "prepare_threshold": 0,
+            "row_factory": dict_row,
+        },
+    )
+    async with pool:
+        checkpointer = AsyncPostgresSaver(conn=pool, serde=SafeCheckpointSerde())
+        yield pool, checkpointer

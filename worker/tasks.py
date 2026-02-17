@@ -10,6 +10,7 @@ from typing import Any
 import redis
 
 from config import settings
+from core.state import get_send_event, set_send_event
 from worker.celery_app import app
 from worker.redis_events import (
     META_TTL_SECONDS,
@@ -51,9 +52,12 @@ async def _run_research_async(
     thread_id: str,
     thread_item_id: str,
     max_iterations: int,
+    mode: str,
     redis_client: redis.Redis,
 ) -> None:
-    from core.graph import create_runnable, get_checkpointer
+    from core.graph import create_runnable, get_checkpointer_from_pool
+    from core.intent import classify_research_vs_chat
+    from core.simple_chat import run_simple_chat_and_send
     from memory.vector_store import memory_store
 
     try:
@@ -70,6 +74,15 @@ async def _run_research_async(
         _t, _d = event_type, data
         await loop.run_in_executor(None, lambda: publish(_t, _d))
 
+    if mode == "quick":
+        await run_simple_chat_and_send(query, send_event)
+        return
+    if mode == "research":
+        intent = await classify_research_vs_chat(query)
+        if intent == "chat":
+            await run_simple_chat_and_send(query, send_event)
+            return
+
     initial_state: dict[str, Any] = {
         "query": query,
         "task_id": task_id,
@@ -84,15 +97,17 @@ async def _run_research_async(
         "max_iterations": max_iterations,
         "final_report": "",
         "sources_metadata": [],
-        "_send_event": send_event,
     }
 
-        checkpointer_cm = await get_checkpointer()
-        async with checkpointer_cm as checkpointer:
+    async with get_checkpointer_from_pool() as (_pool, checkpointer):
+        set_send_event(send_event)
+        try:
             await checkpointer.setup()
             runnable = await create_runnable(checkpointer)
-        config = {"configurable": {"thread_id": thread_id}}
-        final_state = await runnable.ainvoke(initial_state, config=config)
+            config = {"configurable": {"thread_id": thread_id}}
+            final_state = await runnable.ainvoke(initial_state, config=config)
+        finally:
+            set_send_event(None)
 
     final_report = final_state.get("final_report", "")
     documents = final_state.get("documents", [])
@@ -154,8 +169,9 @@ def run_research_task(
     thread_id: str,
     thread_item_id: str,
     max_iterations: int,
+    mode: str = "research",
 ) -> None:
-    """Run the research graph in a worker; publish events to Redis for SSE."""
+    """Run the research graph in a worker; publish events to Redis for SSE. mode=quick runs simple chat only; mode=research runs intent then chat or full pipeline."""
     redis_client = _get_redis()
     _set_task_meta(redis_client, task_id, thread_id, thread_item_id)
     try:
@@ -166,6 +182,7 @@ def run_research_task(
                 thread_id=thread_id,
                 thread_item_id=thread_item_id,
                 max_iterations=max_iterations,
+                mode=mode,
                 redis_client=redis_client,
             )
         )

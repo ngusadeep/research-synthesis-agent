@@ -123,8 +123,10 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         query: body.prompt,
+                        mode: body.mode === 'quick' ? 'quick' : 'research',
                         max_iterations: 3,
                         thread_id: body.threadId,
+                        thread_item_id: body.threadItemId,
                     }),
                     signal: abortController.signal,
                 });

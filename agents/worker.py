@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from config import settings
 from core.state import ResearchState, RetrievedDocument
 from tools import arxiv_search, tavily_search, wikipedia_search, serpapi_search
 
@@ -20,7 +21,9 @@ SOURCE_TOOL_MAP = {
 
 async def worker_node(state: ResearchState) -> dict:
     """Execute retrieval per sub-query; primary + fallback tool; stream sources."""
-    send_event = state.get("_send_event")
+    from core.state import get_send_event
+
+    send_event = get_send_event()
     plan = state.get("plan", [])
     all_documents: list[RetrievedDocument] = []
 
@@ -112,7 +115,24 @@ async def worker_node(state: ResearchState) -> dict:
             source_type,
         )
 
-    return {"documents": all_documents}
+    # Rank by credibility, dedupe by source URL; keep only top N for synthesis and display
+    max_sources = getattr(settings, "max_sources_used", 10)
+    seen_urls: set[str] = set()
+    unique_docs: list[RetrievedDocument] = []
+    for doc in sorted(all_documents, key=lambda d: d.credibility_score, reverse=True):
+        url = (doc.source or "").strip()
+        if url not in seen_urls:
+            seen_urls.add(url)
+            unique_docs.append(doc)
+            if len(unique_docs) >= max_sources:
+                break
+    top_documents = unique_docs[:max_sources]
+    logger.info(
+        "Worker ranked to top %s sources (from %s total)",
+        len(top_documents),
+        len(all_documents),
+    )
+    return {"documents": top_documents}
 
 
 async def _execute_tool(tool: Any, query: str, max_results: int = 5) -> list[dict]:

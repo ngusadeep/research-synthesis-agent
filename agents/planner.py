@@ -53,7 +53,9 @@ Generate new sub-queries that address these gaps. Focus on areas not yet covered
 
 async def planner_node(state: ResearchState) -> dict:
     """Plan research: generate sub-queries; on re-plan, incorporate critique."""
-    send_event = state.get("_send_event")
+    from core.state import get_send_event
+
+    send_event = get_send_event()
     query = state["query"]
     iteration = state.get("iteration", 0)
     critique = state.get("critique")

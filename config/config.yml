@@ -6,6 +6,8 @@ app:
   openai_model: gpt-4o-mini
   embedding_model: text-embedding-3-small
   max_iterations: 3
+  # Rank and use only the best N sources for synthesis and display (avoids showing 20–30 refs).
+  max_sources_used: 10
 
 server:
   cors_origins:

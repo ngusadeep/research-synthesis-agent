@@ -3,8 +3,24 @@
 from __future__ import annotations
 
 import operator
+from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Annotated, TypedDict
+from typing import Annotated, Callable, TypedDict
+
+# Callback for streaming events; set before ainvoke so nodes can use it without putting it in state (not msgpack-serializable).
+_send_event_var: ContextVar[Callable[[str, dict], object] | None] = ContextVar(
+    "_send_event", default=None
+)
+
+
+def get_send_event():
+    """Return the current send_event callback, or None. Used by agent nodes to stream without storing a function in state."""
+    return _send_event_var.get()
+
+
+def set_send_event(cb: Callable[[str, dict], object] | None) -> None:
+    """Set the send_event callback for the current context (e.g. before ainvoke)."""
+    _send_event_var.set(cb)
 
 
 @dataclass
@@ -83,4 +99,3 @@ class ResearchState(TypedDict, total=False):
     iteration: int
     max_iterations: int
     final_report: str
-    _send_event: object

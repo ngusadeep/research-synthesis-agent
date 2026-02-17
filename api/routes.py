@@ -24,6 +24,9 @@ from api.schemas import (
 )
 from config import settings
 from core.graph import create_runnable, get_checkpointer
+from core.intent import classify_research_vs_chat
+from core.simple_chat import run_simple_chat_and_send
+from core.state import set_send_event
 from memory.vector_store import memory_store
 
 logger = logging.getLogger(__name__)
@@ -39,9 +42,10 @@ def _use_celery() -> bool:
 
 @router.post("/research", response_model=TaskCreated)
 async def start_research(request: ResearchRequest) -> TaskCreated:
+    """Start a research task. Use client-provided thread_id so the session is tied to that chat/thread."""
     task_id = str(uuid4())
     thread_id = request.thread_id or str(uuid4())
-    thread_item_id = str(uuid4())
+    thread_item_id = request.thread_item_id or str(uuid4())
 
     if _use_celery():
         from worker.tasks import run_research_task
@@ -52,6 +56,7 @@ async def start_research(request: ResearchRequest) -> TaskCreated:
             thread_id=thread_id,
             thread_item_id=thread_item_id,
             max_iterations=request.max_iterations,
+            mode=request.mode,
         )
         return TaskCreated(
             task_id=task_id,
@@ -76,6 +81,7 @@ async def start_research(request: ResearchRequest) -> TaskCreated:
             thread_id=thread_id,
             thread_item_id=thread_item_id,
             max_iterations=request.max_iterations,
+            mode=request.mode,
             queue=queue,
         )
     )
@@ -165,7 +171,7 @@ async def _stream_from_redis(task_id: str, request: Request):
         while True:
             if await request.is_disconnected():
                 break
-            msg = pubsub.get_message(ignore_subscribe_messages=True)
+            msg = await pubsub.get_message(ignore_subscribe_messages=True)
             if msg is not None:
                 try:
                     data = (
@@ -252,12 +258,29 @@ async def _run_research_agent(
     thread_id: str,
     thread_item_id: str,
     max_iterations: int,
+    mode: str,
     queue: asyncio.Queue,
 ) -> None:
     try:
 
         async def send_event(event_type: str, data: dict) -> None:
             await queue.put({"type": event_type, "data": data})
+
+        # Quick mode = always simple chat. Research mode = intent check then chat or full pipeline.
+        if mode == "quick":
+            await run_simple_chat_and_send(query, send_event)
+            _tasks[task_id]["status"] = "completed"
+            _tasks[task_id]["result"] = {"report_id": task_id}
+            await queue.put(None)
+            return
+        if mode == "research":
+            intent = await classify_research_vs_chat(query)
+            if intent == "chat":
+                await run_simple_chat_and_send(query, send_event)
+                _tasks[task_id]["status"] = "completed"
+                _tasks[task_id]["result"] = {"report_id": task_id}
+                await queue.put(None)
+                return
 
         initial_state: dict[str, Any] = {
             "query": query,
@@ -273,7 +296,6 @@ async def _run_research_agent(
             "max_iterations": max_iterations,
             "final_report": "",
             "sources_metadata": [],
-            "_send_event": send_event,
         }
 
         checkpointer_cm = await get_checkpointer()
@@ -281,7 +303,11 @@ async def _run_research_agent(
             await checkpointer.setup()
             runnable = await create_runnable(checkpointer)
             config = {"configurable": {"thread_id": thread_id}}
-            final_state = await runnable.ainvoke(initial_state, config=config)
+            set_send_event(send_event)
+            try:
+                final_state = await runnable.ainvoke(initial_state, config=config)
+            finally:
+                set_send_event(None)
 
         final_report = final_state.get("final_report", "")
         documents = final_state.get("documents", [])

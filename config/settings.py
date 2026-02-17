@@ -34,6 +34,8 @@ def _load_yaml_config() -> dict:
         flat["embedding_model"] = app["embedding_model"]
     if app.get("max_iterations") is not None:
         flat["max_iterations"] = app["max_iterations"]
+    if app.get("max_sources_used") is not None:
+        flat["max_sources_used"] = app["max_sources_used"]
     if server.get("cors_origins") is not None:
         flat["cors_origins"] = server["cors_origins"]
     if chroma.get("persist_directory") is not None:
@@ -59,6 +61,7 @@ class Settings(BaseSettings):
     database_url: str = ""
     redis_url: str = ""
     max_iterations: int = 3
+    max_sources_used: int = 10
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     langsmith_tracing: bool = False
     langsmith_api_key: str = ""

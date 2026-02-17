@@ -46,7 +46,9 @@ Return ONLY the JSON object."""
 
 async def critic_node(state: ResearchState) -> dict:
     """Evaluate draft; decide refine vs finalize; enforce max_iterations."""
-    send_event = state.get("_send_event")
+    from core.state import get_send_event
+
+    send_event = get_send_event()
     draft = state.get("draft", "")
     query = state["query"]
     iteration = state.get("iteration", 1)

@@ -8,7 +8,7 @@ COPY package.json pnpm-lock.yaml* package-lock.json* ./
 RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
 COPY . .
-ARG NEXT_PUBLIC_API_URL=http://localhost/api
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm run build
 

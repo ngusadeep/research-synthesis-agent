@@ -49,7 +49,9 @@ URL: {source}
 
 async def synthesizer_node(state: ResearchState) -> dict:
     """Synthesize documents into report; stream tokens; extract conflicts."""
-    send_event = state.get("_send_event")
+    from core.state import get_send_event
+
+    send_event = get_send_event()
     query = state["query"]
     documents = state.get("documents", [])
 

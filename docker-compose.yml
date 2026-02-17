@@ -39,6 +39,7 @@ services:
 
   api:
     build: .
+    image: multi-agent-research-synthesizer-app
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -53,12 +54,12 @@ services:
         condition: service_healthy
       chroma:
         condition: service_started
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8010:8000"
 
   celery_worker:
     build: .
+    image: multi-agent-research-synthesizer-app
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -73,14 +74,17 @@ services:
         condition: service_healthy
       chroma:
         condition: service_started
-    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
+    command: ["uv", "run", "celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Baked in at build time (Next.js). Base URL only; frontend calls ${API_URL}/api/research.
+        NEXT_PUBLIC_API_URL: http://localhost:8080
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
+      NEXT_PUBLIC_API_URL: http://localhost:8080
     ports:
       - "3080:3000"
     depends_on:
