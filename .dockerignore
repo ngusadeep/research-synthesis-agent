@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.git
+.env
+chroma_db
+checkpoints.sqlite
+frontend
+*.md
+.pytest_cache
+.coverage
+htmlcov
