@@ -8,12 +8,12 @@ from typing import Literal
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-from app.agent.state import ResearchState
-from app.agent.nodes.planner import planner_node
-from app.agent.nodes.worker import worker_node
-from app.agent.nodes.synthesizer import synthesizer_node
-from app.agent.nodes.critic import critic_node
-from app.config import settings
+from agent.state import ResearchState
+from agent.nodes.planner import planner_node
+from agent.nodes.worker import worker_node
+from agent.nodes.synthesizer import synthesizer_node
+from agent.nodes.critic import critic_node
+from config import settings
 
 logger = logging.getLogger(__name__)
 

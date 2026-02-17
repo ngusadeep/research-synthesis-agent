@@ -9,7 +9,7 @@ from typing import Any
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.agent.state import ResearchState, RetrievedDocument
-from app.agent.tools import arxiv_search, tavily_search, wikipedia_search, serpapi_search
+from agent.state import ResearchState, RetrievedDocument
+from agent.tools import arxiv_search, tavily_search, wikipedia_search, serpapi_search
 
 logger = logging.getLogger(__name__)
 

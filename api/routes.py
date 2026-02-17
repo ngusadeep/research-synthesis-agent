@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.models import (
+from api.models import (
     ConflictOut,
     CritiqueOut,
     HistoryItem,
@@ -22,9 +22,9 @@ from app.api.models import (
     SourceOut,
     TaskCreated,
 )
-from app.agent.graph import create_runnable, get_checkpointer
-from app.agent.state import ResearchState
-from app.memory.vector_store import memory_store
+from agent.graph import create_runnable, get_checkpointer
+from agent.state import ResearchState
+from memory.vector_store import memory_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")

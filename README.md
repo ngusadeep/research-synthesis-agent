@@ -47,18 +47,15 @@ SQLite   (graph checkpoints)
 - Node.js 18+ and npm (or bun)
 - API keys: OpenAI, Tavily, SerpAPI (see below)
 
-### 1. Backend
+### 1. Backend (from repo root)
 
 ```bash
-cd backend
-
-# Copy and fill in your API keys
+# From the project root
 cp .env.example .env
-# Edit .env with your keys
+# Edit .env with your API keys
 
-# Install dependencies and run
 uv sync
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn main:app --reload --port 8000
 ```
 
 The backend will be available at `http://localhost:8000`. Check health at `http://localhost:8000/health`.
@@ -82,7 +79,7 @@ The frontend will be available at `http://localhost:3000`.
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Backend (`.env` at project root)
 
 | Variable                 | Required | Default        | Description                  |
 | ------------------------ | -------- | -------------- | ---------------------------- |
@@ -101,7 +98,7 @@ The frontend will be available at `http://localhost:3000`.
 To trace agent runs (LangGraph, LLM calls, tools) in [LangSmith](https://smith.langchain.com):
 
 1. Get an API key at [smith.langchain.com](https://smith.langchain.com).
-2. In `backend/.env` set:
+2. In `.env` at project root set:
    - `LANGSMITH_TRACING=true`
    - `LANGSMITH_API_KEY=lsv2_pt_...`
    - `LANGSMITH_PROJECT=research-synthesis-agent` (optional; default above)
@@ -137,31 +134,27 @@ To trace agent runs (LangGraph, LLM calls, tools) in [LangSmith](https://smith.l
 
 ```
 research-synthesis-agent/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app with CORS & lifespan
-│   │   ├── config.py            # Pydantic Settings from .env
-│   │   ├── agent/
-│   │   │   ├── graph.py         # LangGraph StateGraph wiring
-│   │   │   ├── state.py         # ResearchState TypedDict
-│   │   │   ├── nodes/
-│   │   │   │   ├── planner.py   # Query planning & sub-query generation
-│   │   │   │   ├── worker.py    # Parallel source retrieval
-│   │   │   │   ├── synthesizer.py # Report synthesis & conflict detection
-│   │   │   │   └── critic.py    # Self-critique & loop control
-│   │   │   └── tools/
-│   │   │       ├── arxiv.py     # ArXiv academic search
-│   │   │       ├── tavily.py    # Tavily web search
-│   │   │       ├── wikipedia.py # Wikipedia reference search
-│   │   │       └── serpapi.py   # SerpAPI fallback search
-│   │   ├── memory/
-│   │   │   └── vector_store.py  # ChromaDB: reports + credibility
-│   │   └── api/
-│   │       ├── routes.py        # FastAPI endpoints & SSE streaming
-│   │       └── models.py        # Pydantic request/response models
-│   ├── pyproject.toml
-│   └── .env.example
-├── frontend/
+├── main.py                      # FastAPI app entry (uvicorn main:app)
+├── config.py                    # Pydantic Settings from .env
+├── agent/                       # LangGraph agent
+│   ├── graph.py                 # StateGraph wiring
+│   ├── state.py                 # ResearchState TypedDict
+│   ├── nodes/
+│   │   ├── planner.py           # Query planning & sub-query generation
+│   │   ├── worker.py            # Parallel source retrieval
+│   │   ├── synthesizer.py       # Report synthesis & conflict detection
+│   │   └── critic.py            # Self-critique & loop control
+│   └── tools/
+│       ├── arxiv.py             # ArXiv academic search
+│       ├── tavily.py            # Tavily web search
+│       ├── wikipedia.py         # Wikipedia reference search
+│       └── serpapi.py           # SerpAPI fallback search
+├── memory/
+│   └── vector_store.py          # ChromaDB: reports + credibility
+├── api/
+│   ├── routes.py                # FastAPI endpoints & SSE streaming
+│   └── models.py                # Pydantic request/response models
+├── frontend/                    # Next.js (unchanged)
 │   ├── app/                     # Next.js App Router pages
 │   ├── components/              # React components (shadcn/ui based)
 │   ├── hooks/
@@ -170,6 +163,8 @@ research-synthesis-agent/
 │   │   └── chat-mode.ts         # Research + Quick modes
 │   ├── store/                   # Zustand + Dexie state
 │   └── .env.local.example
+├── pyproject.toml               # Python deps (backend)
+├── .env.example                 # Backend env template
 └── README.md
 ```
 

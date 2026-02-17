@@ -11,7 +11,7 @@ from uuid import uuid4
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 
-from app.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
