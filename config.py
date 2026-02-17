@@ -1,32 +1,17 @@
-"""Application configuration loaded from environment variables."""
+"""Application configuration (Pydantic, .env)."""
 
 from pydantic_settings import BaseSettings
-from pathlib import Path
 
 
 class Settings(BaseSettings):
-    """Central configuration for the research agent backend."""
-
-    # LLM
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
-
-    # Search APIs
     tavily_api_key: str = ""
     serpapi_api_key: str = ""
-
-    # Storage
     chroma_persist_directory: str = "./chroma_db"
     sqlite_checkpoint_path: str = "./checkpoints.sqlite"
-
-    # Agent
     max_iterations: int = 3
-    max_workers: int = 5
-
-    # Server
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
-
-    # LangSmith tracing (observability)
     langsmith_tracing: bool = False
     langsmith_api_key: str = ""
     langsmith_project: str = "research-synthesis-agent"

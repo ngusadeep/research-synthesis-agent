@@ -1,3 +1,5 @@
-from .vector_store import MemoryStore
+"""Long-term memory (ChromaDB)."""
 
-__all__ = ["MemoryStore"]
+from .vector_store import memory_store
+
+__all__ = ["memory_store"]

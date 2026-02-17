@@ -1,3 +1,5 @@
+"""Graph node agents."""
+
 from .planner import planner_node
 from .worker import worker_node
 from .synthesizer import synthesizer_node

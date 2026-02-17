@@ -1,4 +1,4 @@
-"""ArXiv academic paper search tool."""
+"""ArXiv search tool."""
 
 from __future__ import annotations
 
@@ -14,25 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class ArxivSearchInput(BaseModel):
-    """Input schema for ArXiv search."""
-
     query: str = Field(description="Search query for academic papers")
     max_results: int = Field(default=5, description="Maximum number of results to return")
 
 
 async def _arxiv_search(query: str, max_results: int = 5) -> list[dict[str, Any]]:
-    """
-    Search ArXiv for academic papers matching the query.
-
-    Runs the synchronous arxiv client in a thread pool to avoid blocking.
-    """
     def _sync_search() -> list[dict[str, Any]]:
         client = arxiv.Client()
-        search = arxiv.Search(
-            query=query,
-            max_results=max_results,
-            sort_by=arxiv.SortCriterion.Relevance,
-        )
+        search = arxiv.Search(query=query, max_results=max_results, sort_by=arxiv.SortCriterion.Relevance)
         results = []
         try:
             for paper in client.results(search):
@@ -50,16 +39,15 @@ async def _arxiv_search(query: str, max_results: int = 5) -> list[dict[str, Any]
                     },
                 })
         except Exception as e:
-            logger.error(f"ArXiv search failed: {e}")
+            logger.error("ArXiv search failed: %s", e)
         return results
 
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _sync_search)
+    return await asyncio.get_event_loop().run_in_executor(None, _sync_search)
 
 
 arxiv_search = StructuredTool.from_function(
     coroutine=_arxiv_search,
     name="arxiv_search",
-    description="Search ArXiv for academic and scientific papers. Best for research topics, scientific concepts, and technical subjects.",
+    description="Search ArXiv for academic and scientific papers.",
     args_schema=ArxivSearchInput,
 )

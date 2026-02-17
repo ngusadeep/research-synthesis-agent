@@ -1,4 +1,4 @@
-"""Critic node: self-critiques the draft and decides whether to refine."""
+"""Critic node: quality score and refine/finalize decision."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 
 from config import settings
-from agent.state import ResearchState, Critique
+from core.state import ResearchState, Critique
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +45,7 @@ Return ONLY the JSON object."""
 
 
 async def critic_node(state: ResearchState) -> dict:
-    """
-    Evaluate the current draft and decide whether it needs refinement.
-
-    If the draft is good enough (score >= 0.7) or we've hit max iterations,
-    finalize the report. Otherwise, flag for re-planning.
-    """
+    """Evaluate draft; decide refine vs finalize; enforce max_iterations."""
     send_event = state.get("_send_event")
     draft = state.get("draft", "")
     query = state["query"]
@@ -58,9 +53,7 @@ async def critic_node(state: ResearchState) -> dict:
     max_iterations = state.get("max_iterations", 3)
 
     if send_event:
-        await send_event("steps", {
-            "steps": [{"id": "critique", "text": f"Self-critiquing (iteration {iteration})...", "status": "PENDING", "steps": []}]
-        })
+        await send_event("steps", {"steps": [{"id": "critique", "text": f"Self-critiquing (iteration {iteration})...", "status": "PENDING", "steps": []}]})
 
     llm = ChatOpenAI(
         model=settings.openai_model,
@@ -68,43 +61,28 @@ async def critic_node(state: ResearchState) -> dict:
         temperature=0.1,
     )
 
-    source_types = set()
-    for doc in state.get("documents", []):
-        source_types.add(doc.source_type)
-
+    source_types = {doc.source_type for doc in state.get("documents", [])}
     user_content = (
         f"Original query: {query}\n\n"
         f"Current iteration: {iteration} of {max_iterations}\n"
         f"Source types used: {', '.join(source_types) if source_types else 'none'}\n"
         f"Number of documents: {len(state.get('documents', []))}\n\n"
-        f"Draft report:\n{draft[:4000]}"  # Truncate for context window
+        f"Draft report:\n{draft[:4000]}"
     )
 
-    messages = [
+    response = await llm.ainvoke([
         SystemMessage(content=CRITIC_SYSTEM_PROMPT),
         HumanMessage(content=user_content),
-    ]
-
-    response = await llm.ainvoke(messages)
+    ])
     content = response.content.strip()
-
-    # Strip markdown code fences if present
     if content.startswith("```"):
         content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
-        logger.error(f"Failed to parse critic response: {content}")
-        data = {
-            "needs_refinement": False,
-            "overall_score": 0.7,
-            "gaps": [],
-            "diversity_issues": [],
-            "outdated_concerns": [],
-            "suggestions": [],
-            "summary": "Could not evaluate — accepting draft as-is.",
-        }
+        logger.error("Failed to parse critic response: %s", content)
+        data = {"needs_refinement": False, "overall_score": 0.7, "gaps": [], "diversity_issues": [], "outdated_concerns": [], "suggestions": [], "summary": "Could not evaluate — accepting draft as-is."}
 
     critique = Critique(
         needs_refinement=data.get("needs_refinement", False),
@@ -116,25 +94,17 @@ async def critic_node(state: ResearchState) -> dict:
         summary=data.get("summary", ""),
     )
 
-    # Force finalization if we've hit max iterations
     if iteration >= max_iterations:
         critique.needs_refinement = False
-        logger.info(f"Max iterations ({max_iterations}) reached, finalizing")
+        logger.info("Max iterations (%s) reached, finalizing", max_iterations)
 
-    # Build result
     result: dict = {"critique": critique}
-
     if not critique.needs_refinement:
-        # Finalize the report
         result["final_report"] = draft
-        logger.info(f"Critic accepted draft (score: {critique.overall_score:.2f})")
+        logger.info("Critic accepted draft (score: %s)", critique.overall_score)
     else:
-        logger.info(
-            f"Critic requests refinement (score: {critique.overall_score:.2f}): "
-            f"{critique.summary}"
-        )
+        logger.info("Critic requests refinement (score: %s): %s", critique.overall_score, critique.summary)
 
-    # Stream critique to frontend
     if send_event:
         status = "COMPLETED" if not critique.needs_refinement else "PENDING"
         await send_event("steps", {

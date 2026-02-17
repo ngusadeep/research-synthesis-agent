@@ -1,3 +1,5 @@
+"""Schema-validated search tools."""
+
 from .arxiv import arxiv_search
 from .tavily import tavily_search
 from .wikipedia import wikipedia_search

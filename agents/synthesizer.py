@@ -1,4 +1,4 @@
-"""Synthesizer node: produces a structured markdown report from retrieved documents."""
+"""Synthesizer node: report and conflict extraction."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 
 from config import settings
-from agent.state import ResearchState, Conflict, SourceMeta
+from core.state import ResearchState, Conflict, SourceMeta
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +48,7 @@ URL: {source}
 
 
 async def synthesizer_node(state: ResearchState) -> dict:
-    """
-    Synthesize all retrieved documents into a structured research report.
-
-    Streams the report incrementally to the frontend as it's generated.
-    """
+    """Synthesize documents into report; stream tokens; extract conflicts."""
     send_event = state.get("_send_event")
     query = state["query"]
     documents = state.get("documents", [])
@@ -63,7 +59,6 @@ async def synthesizer_node(state: ResearchState) -> dict:
             await send_event("answer", {"answer": {"text": draft}})
         return {"draft": draft, "conflicts": [], "sources_metadata": []}
 
-    # Format documents for the LLM
     doc_texts = []
     sources_metadata = []
     for i, doc in enumerate(documents):
@@ -73,7 +68,7 @@ async def synthesizer_node(state: ResearchState) -> dict:
             source_type=doc.source_type,
             credibility=f"{doc.credibility_score:.0%}",
             source=doc.source,
-            content=doc.content[:1500],  # Truncate long documents
+            content=doc.content[:1500],
         ))
         sources_metadata.append(SourceMeta(
             url=doc.source,
@@ -82,8 +77,7 @@ async def synthesizer_node(state: ResearchState) -> dict:
             credibility_score=doc.credibility_score,
         ))
 
-    user_content = f"Research query: {query}\n\nRetrieved documents ({len(documents)} total):\n\n"
-    user_content += "\n\n".join(doc_texts)
+    user_content = f"Research query: {query}\n\nRetrieved documents ({len(documents)} total):\n\n" + "\n\n".join(doc_texts)
 
     llm = ChatOpenAI(
         model=settings.openai_model,
@@ -91,17 +85,13 @@ async def synthesizer_node(state: ResearchState) -> dict:
         temperature=0.2,
         streaming=True,
     )
-
     messages = [
         SystemMessage(content=SYNTHESIZER_SYSTEM_PROMPT),
         HumanMessage(content=user_content),
     ]
 
-    # Stream the synthesis
     if send_event:
-        await send_event("steps", {
-            "steps": [{"id": "synthesis", "text": "Synthesizing report...", "status": "PENDING", "steps": []}]
-        })
+        await send_event("steps", {"steps": [{"id": "synthesis", "text": "Synthesizing report...", "status": "PENDING", "steps": []}]})
 
     full_draft = ""
     async for chunk in llm.astream(messages):
@@ -112,27 +102,17 @@ async def synthesizer_node(state: ResearchState) -> dict:
                 await send_event("answer", {"answer": {"text": token}})
 
     if send_event:
-        await send_event("steps", {
-            "steps": [{"id": "synthesis", "text": "Synthesizing report...", "status": "COMPLETED", "steps": []}]
-        })
+        await send_event("steps", {"steps": [{"id": "synthesis", "text": "Synthesizing report...", "status": "COMPLETED", "steps": []}]})
 
-    # Extract conflicts from the JSON block at the end
     conflicts = _extract_conflicts(full_draft)
+    logger.info("Synthesizer produced %s chars, %s conflicts", len(full_draft), len(conflicts))
 
-    logger.info(f"Synthesizer produced {len(full_draft)} chars, {len(conflicts)} conflicts detected")
-
-    return {
-        "draft": full_draft,
-        "conflicts": conflicts,
-        "sources_metadata": sources_metadata,
-    }
+    return {"draft": full_draft, "conflicts": conflicts, "sources_metadata": sources_metadata}
 
 
 def _extract_conflicts(draft: str) -> list[Conflict]:
-    """Extract the conflicts JSON block from the end of the draft."""
     conflicts = []
     try:
-        # Look for the JSON block after ---
         if "```json" in draft:
             json_block = draft.split("```json")[-1].split("```")[0].strip()
             data = json.loads(json_block)
@@ -145,5 +125,5 @@ def _extract_conflicts(draft: str) -> list[Conflict]:
                     description=c.get("description", ""),
                 ))
     except (json.JSONDecodeError, IndexError, KeyError) as e:
-        logger.warning(f"Could not extract conflicts JSON: {e}")
+        logger.warning("Could not extract conflicts JSON: %s", e)
     return conflicts

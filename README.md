@@ -2,6 +2,19 @@
 
 An autonomous research agent that takes a user query, plans sub-queries across multiple sources (ArXiv, Tavily, Wikipedia, SerpAPI), synthesizes a cited report, detects conflicts, self-critiques, and iteratively refines the output — all streamed in real-time to a modern chat UI.
 
+## Project structure (backend)
+
+Backend at repo root (production-grade multi-agent layout):
+
+- **Root**: `main.py` (FastAPI app), `config.py` (settings)
+- **`core/`** — orchestration and state: `state.py` (global state schema), `graph.py` (LangGraph build, checkpointer)
+- **`agents/`** — specialized nodes: planner, worker, synthesizer, critic
+- **`tools/`** — schema-validated tools: arxiv, tavily, wikipedia, serpapi
+- **`memory/`** — long-term semantic memory (ChromaDB: reports, source credibility)
+- **`api/`** — FastAPI routes and Pydantic schemas (research, history, SSE streaming)
+
+Run: `uv run uvicorn main:app --reload --port 8000`
+
 ## Architecture
 
 ```
