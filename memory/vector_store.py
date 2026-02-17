@@ -20,10 +20,19 @@ class MemoryStore:
         self._credibility: chromadb.Collection | None = None
 
     def initialize(self) -> None:
-        self._client = chromadb.PersistentClient(
-            path=settings.chroma_persist_directory,
-            settings=ChromaSettings(anonymized_telemetry=False),
-        )
+        if settings.chroma_http_host:
+            self._client = chromadb.HttpClient(
+                host=settings.chroma_http_host,
+                port=settings.chroma_http_port,
+                settings=ChromaSettings(anonymized_telemetry=False),
+            )
+            where = f"http://{settings.chroma_http_host}:{settings.chroma_http_port}"
+        else:
+            self._client = chromadb.PersistentClient(
+                path=settings.chroma_persist_directory,
+                settings=ChromaSettings(anonymized_telemetry=False),
+            )
+            where = settings.chroma_persist_directory
         self._reports = self._client.get_or_create_collection(
             name="reports", metadata={"hnsw:space": "cosine"}
         )
@@ -32,7 +41,7 @@ class MemoryStore:
         )
         logger.info(
             "ChromaDB initialized at %s (reports: %s, credibility: %s)",
-            settings.chroma_persist_directory,
+            where,
             self._reports.count(),
             self._credibility.count(),
         )

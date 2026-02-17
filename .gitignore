@@ -1,0 +1,24 @@
+# env and secrets (never commit)
+.env
+.env.local
+.env.*.local
+
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+
+# local / data
+chroma_db
+checkpoints.sqlite
+node_modules
+
+# repo
+.git
+
+# docs (optional)
+*.md

@@ -24,12 +24,21 @@ def _configure_langsmith() -> None:
     if not settings.langsmith_tracing or not settings.langsmith_api_key:
         return
     os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_ENDPOINT"] = settings.langsmith_endpoint.strip()
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
     os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
-    os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
+    os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project.strip().strip('"')
+    if settings.langsmith_endpoint:
+        os.environ["LANGCHAIN_ENDPOINT"] = settings.langsmith_endpoint.strip()
     if settings.langsmith_workspace_id:
-        os.environ["LANGSMITH_WORKSPACE_ID"] = settings.langsmith_workspace_id
-    logger.info("LangSmith tracing enabled (project=%s)", settings.langsmith_project)
+        os.environ["LANGSMITH_WORKSPACE_ID"] = (
+            settings.langsmith_workspace_id.strip().strip('"')
+        )
+    logger.info(
+        "LangSmith tracing enabled (project=%s, endpoint=%s)",
+        settings.langsmith_project,
+        settings.langsmith_endpoint or "default",
+    )
 
 
 @asynccontextmanager

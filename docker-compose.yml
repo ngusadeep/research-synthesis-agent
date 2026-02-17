@@ -27,20 +27,32 @@ services:
       timeout: 3s
       retries: 5
 
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      CHROMA_SERVER_AUTHN_CREDENTIALS: ""
+      CHROMA_SERVER_AUTHN_PROVIDER: ""
+
   api:
     build: .
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/research
-      CHROMA_PERSIST_DIRECTORY: /app/data/chroma_db
-    volumes:
-      - app_data:/app/data
+      CHROMA_HTTP_HOST: chroma
+      CHROMA_HTTP_PORT: 8000
+      # CONFIG_FILE=config/config.yml  # optional; included in image
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      chroma:
+        condition: service_started
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   celery_worker:
@@ -49,14 +61,16 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/research
-      CHROMA_PERSIST_DIRECTORY: /app/data/chroma_db
-    volumes:
-      - app_data:/app/data
+      CHROMA_HTTP_HOST: chroma
+      CHROMA_HTTP_PORT: 8000
+      # CONFIG_FILE=config/config.yml  # optional
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      chroma:
+        condition: service_started
     command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
 
   frontend:
@@ -81,4 +95,4 @@ services:
 volumes:
   redis_data: {}
   postgres_data: {}
-  app_data: {}
+  chroma_data: {}

@@ -1,0 +1,20 @@
+# Application config (non-secret defaults).
+# Override with .env; secrets and URLs go in .env only.
+
+app:
+  name: research-synthesis-agent
+  openai_model: gpt-4o-mini
+  max_iterations: 3
+
+server:
+  cors_origins:
+    - http://localhost:3000
+    - http://127.0.0.1:3000
+
+chroma:
+  persist_directory: ./chroma_db
+  http_port: 8000
+
+langsmith:
+  project: research-synthesis-agent
+  endpoint: https://api.smith.langchain.com
