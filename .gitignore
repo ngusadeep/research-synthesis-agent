@@ -2,23 +2,30 @@
 .env
 .env.local
 .env.*.local
+!.env.example
+!.env*.example
 
-# Python
-.venv
-__pycache__
+# Python venv and caches
+.venv/
+venv/
+__pycache__/
 *.pyc
 *.pyo
-.pytest_cache
+*.pyd
+.pytest_cache/
+.mypy_cache/
 .coverage
-htmlcov
+htmlcov/
+
+# IDE / language servers (Pylance, Pyright, etc.)
+.pyright/
+pyrightconfig.json
+**/__pylance__/
 
 # local / data
-chroma_db
+chroma_db/
 checkpoints.sqlite
-node_modules
+node_modules/
 
 # repo
-.git
-
-# docs (optional)
-*.md
+.git/
