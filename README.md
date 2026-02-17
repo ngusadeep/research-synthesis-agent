@@ -12,8 +12,13 @@ Backend at repo root (production-grade multi-agent layout):
 - **`tools/`** — schema-validated tools: arxiv, tavily, wikipedia, serpapi
 - **`memory/`** — long-term semantic memory (ChromaDB: reports, source credibility)
 - **`api/`** — FastAPI routes and Pydantic schemas (research, history, SSE streaming)
+- **`worker/`** — Celery task (runs research graph, publishes SSE events via Redis)
 
-Run: `uv run uvicorn main:app --reload --port 8000`
+**Modes:**
+- **Single-process** (no `REDIS_URL`): API runs the graph in-process; fine for low concurrency.
+- **Distributed** (`REDIS_URL` set): API enqueues work to Celery; workers run the graph and publish to Redis; API streams from Redis. Handles many concurrent requests without crashing.
+
+Run (single-process): `uv run uvicorn main:app --reload --port 8000`
 
 ## Architecture
 
@@ -22,13 +27,15 @@ Next.js UI (port 3000)
     ↓  POST /api/research → { task_id }
     ↓  GET  /api/research/stream/{task_id}  (SSE)
 FastAPI Backend (port 8000)
-    ↓
+    ↓  (if REDIS_URL) enqueue → Redis → Celery worker(s)
+    ↓  (else) asyncio.create_task in-process
 LangGraph StateGraph
     Planner → Worker(s) → Synthesizer → Critic
        ↑___________________________|  (loop if needs refinement)
     ↓
 ChromaDB (reports + source credibility)
 SQLite   (graph checkpoints)
+Redis    (broker + SSE pub/sub when distributed)
 ```
 
 ## Features
@@ -48,8 +55,9 @@ SQLite   (graph checkpoints)
 | Frontend   | Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui  |
 | Backend    | FastAPI, LangGraph, LangChain, OpenAI GPT-4o-mini             |
 | Search     | Tavily, ArXiv, Wikipedia, SerpAPI                              |
-| Storage    | ChromaDB (vector memory), SQLite (checkpoints), Dexie (local)  |
-| Streaming  | Server-Sent Events (SSE via sse-starlette)                     |
+| Storage    | ChromaDB (vector memory), SQLite (checkpoints), Redis (broker + pub/sub), Dexie (local) |
+| Tasks      | Celery (optional; use when `REDIS_URL` is set for distributed load)                      |
+| Streaming  | Server-Sent Events (SSE via sse-starlette)                                               |
 
 ## Quick Start
 
@@ -90,6 +98,42 @@ npm run dev
 
 The frontend will be available at `http://localhost:3000`.
 
+### 3. Distributed mode (Celery + Redis) — many concurrent requests
+
+With many frontend threads/requests, run Redis and Celery so the API stays responsive and workers process research in the background:
+
+```bash
+# Terminal 1: Redis
+docker run -p 6379:6379 redis:7-alpine
+
+# Terminal 2: API (with REDIS_URL in .env)
+export REDIS_URL=redis://localhost:6379/0
+uv run uvicorn main:app --reload --port 8000
+
+# Terminal 3: Celery worker
+export REDIS_URL=redis://localhost:6379/0
+uv run celery -A celery_app worker --loglevel=info --concurrency=4
+```
+
+Set `REDIS_URL=redis://localhost:6379/0` in `.env` so the API and worker use it. The API will enqueue research tasks; the worker runs the graph and publishes events to Redis; the API streams those events over SSE.
+
+### 4. Docker Compose (deployment)
+
+Runs API, Celery worker, and Redis together. Use this for deployment or to avoid running multiple terminals.
+
+```bash
+cp .env.example .env
+# Edit .env: set OPENAI_API_KEY, TAVILY_API_KEY, SERPAPI_API_KEY (and REDIS_URL is set by compose)
+
+docker compose up --build
+```
+
+- API: `http://localhost:8000`
+- Redis: internal on port 6379
+- Celery worker: 4 concurrent tasks by default (set in `docker-compose.yml`)
+
+Data (ChromaDB, SQLite) is stored in the `app_data` volume. To scale workers: `docker compose up -d --scale celery_worker=2`.
+
 ## Environment Variables
 
 ### Backend (`.env` at project root)
@@ -100,6 +144,8 @@ The frontend will be available at `http://localhost:3000`.
 | `TAVILY_API_KEY`         | Yes      | —              | Tavily search API key        |
 | `SERPAPI_API_KEY`        | No       | —              | SerpAPI key (fallback search)|
 | `CHROMA_PERSIST_DIRECTORY` | No     | `./chroma_db`  | ChromaDB storage path        |
+| `SQLITE_CHECKPOINT_PATH`  | No     | `./checkpoints.sqlite` | Graph checkpoints      |
+| `REDIS_URL`               | No     | —              | Redis URL for Celery + SSE (e.g. `redis://localhost:6379/0`). When set, research runs in workers. |
 | `OPENAI_MODEL`           | No       | `gpt-4o-mini`  | OpenAI model to use          |
 | `LANGSMITH_TRACING`      | No       | `false`        | Enable LangSmith tracing     |
 | `LANGSMITH_API_KEY`      | No*      | —              | LangSmith API key (*if tracing on) |
