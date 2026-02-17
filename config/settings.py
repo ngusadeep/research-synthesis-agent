@@ -1,4 +1,4 @@
-"""Application configuration (Pydantic, .env)."""
+"""Pydantic settings loaded from .env."""
 
 from pydantic_settings import BaseSettings
 
@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     serpapi_api_key: str = ""
     chroma_persist_directory: str = "./chroma_db"
-    sqlite_checkpoint_path: str = "./checkpoints.sqlite"
+    database_url: str = ""
     redis_url: str = ""
     max_iterations: int = 3
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

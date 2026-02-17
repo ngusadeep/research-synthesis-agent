@@ -25,21 +25,28 @@ async def _serpapi_search(query: str, max_results: int = 5) -> list[dict[str, An
         try:
             from serpapi import GoogleSearch
 
-            params = {"q": query, "api_key": settings.serpapi_api_key, "num": max_results, "engine": "google"}
+            params = {
+                "q": query,
+                "api_key": settings.serpapi_api_key,
+                "num": max_results,
+                "engine": "google",
+            }
             data = GoogleSearch(params).get_dict()
             for item in data.get("organic_results", [])[:max_results]:
-                results.append({
-                    "title": item.get("title", ""),
-                    "content": item.get("snippet", ""),
-                    "source": item.get("link", ""),
-                    "source_type": "general",
-                    "snippet": item.get("snippet", "")[:300],
-                    "metadata": {
-                        "position": item.get("position", 0),
-                        "displayed_link": item.get("displayed_link", ""),
-                        "date": item.get("date", ""),
-                    },
-                })
+                results.append(
+                    {
+                        "title": item.get("title", ""),
+                        "content": item.get("snippet", ""),
+                        "source": item.get("link", ""),
+                        "source_type": "general",
+                        "snippet": item.get("snippet", "")[:300],
+                        "metadata": {
+                            "position": item.get("position", 0),
+                            "displayed_link": item.get("displayed_link", ""),
+                            "date": item.get("date", ""),
+                        },
+                    }
+                )
         except Exception as e:
             logger.error("SerpAPI search failed: %s", e)
         return results

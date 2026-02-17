@@ -68,8 +68,14 @@ async def planner_node(state: ResearchState) -> dict:
         user_content = REPLAN_TEMPLATE.format(
             query=query,
             gaps="; ".join(critique.gaps) if critique.gaps else "None",
-            diversity_issues="; ".join(critique.diversity_issues) if critique.diversity_issues else "None",
-            suggestions="; ".join(critique.suggestions) if critique.suggestions else "None",
+            diversity_issues=(
+                "; ".join(critique.diversity_issues)
+                if critique.diversity_issues
+                else "None"
+            ),
+            suggestions=(
+                "; ".join(critique.suggestions) if critique.suggestions else "None"
+            ),
             iteration=iteration,
             max_iterations=state.get("max_iterations", 3),
         )
@@ -90,7 +96,13 @@ async def planner_node(state: ResearchState) -> dict:
         raw_plans = json.loads(content)
     except json.JSONDecodeError:
         logger.error("Failed to parse planner response: %s", content)
-        raw_plans = [{"query": query, "source_type": "general", "rationale": "Fallback to original query"}]
+        raw_plans = [
+            {
+                "query": query,
+                "source_type": "general",
+                "rationale": "Fallback to original query",
+            }
+        ]
 
     sub_queries = [
         SubQuery(
@@ -101,11 +113,18 @@ async def planner_node(state: ResearchState) -> dict:
         for p in raw_plans
     ]
 
-    logger.info("Planner generated %s sub-queries (iteration %s)", len(sub_queries), iteration)
+    logger.info(
+        "Planner generated %s sub-queries (iteration %s)", len(sub_queries), iteration
+    )
 
     if send_event:
         steps = [
-            {"id": str(i), "text": f"[{sq.source_type}] {sq.query}", "status": "PENDING", "steps": []}
+            {
+                "id": str(i),
+                "text": f"[{sq.source_type}] {sq.query}",
+                "status": "PENDING",
+                "steps": [],
+            }
             for i, sq in enumerate(sub_queries)
         ]
         await send_event("steps", {"steps": steps})

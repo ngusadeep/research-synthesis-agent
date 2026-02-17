@@ -1,4 +1,5 @@
 const nextConfig = {
+    output: 'standalone',
     transpilePackages: ['next-mdx-remote'],
     images: {
         remotePatterns: [

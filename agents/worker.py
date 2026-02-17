@@ -29,19 +29,33 @@ async def worker_node(state: ResearchState) -> dict:
         query_text = sub_query.query
 
         if send_event:
-            await send_event("steps", {
-                "steps": [{
-                    "id": str(i),
-                    "text": f"[{source_type}] {query_text}",
-                    "status": "PENDING",
-                    "steps": [{"data": f"Searching {source_type} sources...", "status": "PENDING"}],
-                }]
-            })
+            await send_event(
+                "steps",
+                {
+                    "steps": [
+                        {
+                            "id": str(i),
+                            "text": f"[{source_type}] {query_text}",
+                            "status": "PENDING",
+                            "steps": [
+                                {
+                                    "data": f"Searching {source_type} sources...",
+                                    "status": "PENDING",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
 
-        primary_tool, fallback_tool = SOURCE_TOOL_MAP.get(source_type, (serpapi_search, tavily_search))
+        primary_tool, fallback_tool = SOURCE_TOOL_MAP.get(
+            source_type, (serpapi_search, tavily_search)
+        )
         raw_results = await _execute_tool(primary_tool, query_text)
         if not raw_results and fallback_tool:
-            logger.info("Primary tool returned no results for %r, trying fallback", query_text)
+            logger.info(
+                "Primary tool returned no results for %r, trying fallback", query_text
+            )
             raw_results = await _execute_tool(fallback_tool, query_text)
 
         documents = [
@@ -51,7 +65,9 @@ async def worker_node(state: ResearchState) -> dict:
                 source=r.get("source", ""),
                 source_type=r.get("source_type", source_type),
                 snippet=r.get("snippet", ""),
-                credibility_score=_estimate_credibility(r.get("source_type", source_type)),
+                credibility_score=_estimate_credibility(
+                    r.get("source_type", source_type)
+                ),
                 metadata=r.get("metadata", {}),
             )
             for r in raw_results
@@ -60,20 +76,41 @@ async def worker_node(state: ResearchState) -> dict:
 
         if send_event:
             sources = [
-                {"title": doc.title, "link": doc.source, "snippet": doc.snippet, "source_type": doc.source_type, "index": idx}
+                {
+                    "title": doc.title,
+                    "link": doc.source,
+                    "snippet": doc.snippet,
+                    "source_type": doc.source_type,
+                    "index": idx,
+                }
                 for idx, doc in enumerate(documents)
             ]
             await send_event("sources", {"sources": sources})
-            await send_event("steps", {
-                "steps": [{
-                    "id": str(i),
-                    "text": f"[{source_type}] {query_text}",
-                    "status": "COMPLETED",
-                    "steps": [{"data": f"Found {len(documents)} results", "status": "COMPLETED"}],
-                }]
-            })
+            await send_event(
+                "steps",
+                {
+                    "steps": [
+                        {
+                            "id": str(i),
+                            "text": f"[{source_type}] {query_text}",
+                            "status": "COMPLETED",
+                            "steps": [
+                                {
+                                    "data": f"Found {len(documents)} results",
+                                    "status": "COMPLETED",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
 
-        logger.info("Worker retrieved %s docs for %r (%s)", len(documents), query_text, source_type)
+        logger.info(
+            "Worker retrieved %s docs for %r (%s)",
+            len(documents),
+            query_text,
+            source_type,
+        )
 
     return {"documents": all_documents}
 
@@ -88,4 +125,6 @@ async def _execute_tool(tool: Any, query: str, max_results: int = 5) -> list[dic
 
 
 def _estimate_credibility(source_type: str) -> float:
-    return {"academic": 0.85, "reference": 0.75, "news": 0.60, "general": 0.50}.get(source_type, 0.50)
+    return {"academic": 0.85, "reference": 0.75, "news": 0.60, "general": 0.50}.get(
+        source_type, 0.50
+    )

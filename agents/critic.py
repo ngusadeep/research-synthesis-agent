@@ -53,7 +53,19 @@ async def critic_node(state: ResearchState) -> dict:
     max_iterations = state.get("max_iterations", 3)
 
     if send_event:
-        await send_event("steps", {"steps": [{"id": "critique", "text": f"Self-critiquing (iteration {iteration})...", "status": "PENDING", "steps": []}]})
+        await send_event(
+            "steps",
+            {
+                "steps": [
+                    {
+                        "id": "critique",
+                        "text": f"Self-critiquing (iteration {iteration})...",
+                        "status": "PENDING",
+                        "steps": [],
+                    }
+                ]
+            },
+        )
 
     llm = ChatOpenAI(
         model=settings.openai_model,
@@ -70,10 +82,12 @@ async def critic_node(state: ResearchState) -> dict:
         f"Draft report:\n{draft[:4000]}"
     )
 
-    response = await llm.ainvoke([
-        SystemMessage(content=CRITIC_SYSTEM_PROMPT),
-        HumanMessage(content=user_content),
-    ])
+    response = await llm.ainvoke(
+        [
+            SystemMessage(content=CRITIC_SYSTEM_PROMPT),
+            HumanMessage(content=user_content),
+        ]
+    )
     content = response.content.strip()
     if content.startswith("```"):
         content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -82,7 +96,15 @@ async def critic_node(state: ResearchState) -> dict:
         data = json.loads(content)
     except json.JSONDecodeError:
         logger.error("Failed to parse critic response: %s", content)
-        data = {"needs_refinement": False, "overall_score": 0.7, "gaps": [], "diversity_issues": [], "outdated_concerns": [], "suggestions": [], "summary": "Could not evaluate — accepting draft as-is."}
+        data = {
+            "needs_refinement": False,
+            "overall_score": 0.7,
+            "gaps": [],
+            "diversity_issues": [],
+            "outdated_concerns": [],
+            "suggestions": [],
+            "summary": "Could not evaluate — accepting draft as-is.",
+        }
 
     critique = Critique(
         needs_refinement=data.get("needs_refinement", False),
@@ -103,20 +125,35 @@ async def critic_node(state: ResearchState) -> dict:
         result["final_report"] = draft
         logger.info("Critic accepted draft (score: %s)", critique.overall_score)
     else:
-        logger.info("Critic requests refinement (score: %s): %s", critique.overall_score, critique.summary)
+        logger.info(
+            "Critic requests refinement (score: %s): %s",
+            critique.overall_score,
+            critique.summary,
+        )
 
     if send_event:
         status = "COMPLETED" if not critique.needs_refinement else "PENDING"
-        await send_event("steps", {
-            "steps": [{
-                "id": "critique",
-                "text": f"Critique: {critique.summary} (score: {critique.overall_score:.1%})",
-                "status": status,
+        await send_event(
+            "steps",
+            {
                 "steps": [
-                    {"data": f"Gaps: {', '.join(critique.gaps) or 'None'}", "status": status},
-                    {"data": f"Diversity: {', '.join(critique.diversity_issues) or 'OK'}", "status": status},
-                ],
-            }]
-        })
+                    {
+                        "id": "critique",
+                        "text": f"Critique: {critique.summary} (score: {critique.overall_score:.1%})",
+                        "status": status,
+                        "steps": [
+                            {
+                                "data": f"Gaps: {', '.join(critique.gaps) or 'None'}",
+                                "status": status,
+                            },
+                            {
+                                "data": f"Diversity: {', '.join(critique.diversity_issues) or 'OK'}",
+                                "status": status,
+                            },
+                        ],
+                    }
+                ]
+            },
+        )
 
     return result

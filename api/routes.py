@@ -54,7 +54,10 @@ async def start_research(request: ResearchRequest) -> TaskCreated:
             max_iterations=request.max_iterations,
         )
         return TaskCreated(
-            task_id=task_id, thread_id=thread_id, thread_item_id=thread_item_id, status="started"
+            task_id=task_id,
+            thread_id=thread_id,
+            thread_item_id=thread_item_id,
+            status="started",
         )
 
     queue: asyncio.Queue = asyncio.Queue()
@@ -77,7 +80,10 @@ async def start_research(request: ResearchRequest) -> TaskCreated:
         )
     )
     return TaskCreated(
-        task_id=task_id, thread_id=thread_id, thread_item_id=thread_item_id, status="started"
+        task_id=task_id,
+        thread_id=thread_id,
+        thread_item_id=thread_item_id,
+        status="started",
     )
 
 
@@ -110,7 +116,11 @@ async def stream_research(task_id: str, request: Request) -> EventSourceResponse
                     break
                 event_type = event.get("type", "unknown")
                 event_data = event.get("data", {})
-                payload = {"threadId": thread_id, "threadItemId": thread_item_id, **event_data}
+                payload = {
+                    "threadId": thread_id,
+                    "threadItemId": thread_item_id,
+                    **event_data,
+                }
                 yield {"event": event_type, "data": json.dumps(payload)}
                 if event_type in ("done", "error"):
                     break
@@ -135,7 +145,10 @@ async def _stream_from_redis(task_id: str, request: Request):
             break
         await asyncio.sleep(0.2)
     else:
-        yield {"event": "error", "data": json.dumps({"error": "Task not found or not started"})}
+        yield {
+            "event": "error",
+            "data": json.dumps({"error": "Task not found or not started"}),
+        }
         return
 
     try:
@@ -155,12 +168,20 @@ async def _stream_from_redis(task_id: str, request: Request):
             msg = pubsub.get_message(ignore_subscribe_messages=True)
             if msg is not None:
                 try:
-                    data = json.loads(msg["data"]) if isinstance(msg["data"], str) else msg["data"]
+                    data = (
+                        json.loads(msg["data"])
+                        if isinstance(msg["data"], str)
+                        else msg["data"]
+                    )
                 except (json.JSONDecodeError, TypeError):
                     continue
                 event_type = data.get("type", "unknown")
                 event_data = data.get("data", {})
-                payload = {"threadId": thread_id, "threadItemId": thread_item_id, **event_data}
+                payload = {
+                    "threadId": thread_id,
+                    "threadItemId": thread_item_id,
+                    **event_data,
+                }
                 yield {"event": event_type, "data": json.dumps(payload)}
                 if event_type in ("done", "error"):
                     break
@@ -195,9 +216,11 @@ async def list_history(limit: int = 50, offset: int = 0) -> HistoryList:
                 query=item.get("query", ""),
                 summary=meta.get("query", "")[:200],
                 source_count=meta.get("source_count", 0),
-                created_at=datetime.fromisoformat(meta["created_at"])
-                if meta.get("created_at")
-                else datetime.now(timezone.utc),
+                created_at=(
+                    datetime.fromisoformat(meta["created_at"])
+                    if meta.get("created_at")
+                    else datetime.now(timezone.utc)
+                ),
             )
         )
     return HistoryList(items=history_items, total=total)
@@ -215,9 +238,11 @@ async def get_report(report_id: str) -> ReportOut:
         id=report_id,
         query=report_data.get("query", ""),
         report=meta.get("report_summary", "Report details not available in storage."),
-        created_at=datetime.fromisoformat(meta["created_at"])
-        if meta.get("created_at")
-        else datetime.now(timezone.utc),
+        created_at=(
+            datetime.fromisoformat(meta["created_at"])
+            if meta.get("created_at")
+            else datetime.now(timezone.utc)
+        ),
     )
 
 
@@ -230,6 +255,7 @@ async def _run_research_agent(
     queue: asyncio.Queue,
 ) -> None:
     try:
+
         async def send_event(event_type: str, data: dict) -> None:
             await queue.put({"type": event_type, "data": data})
 
@@ -250,8 +276,9 @@ async def _run_research_agent(
             "_send_event": send_event,
         }
 
-        checkpointer = await get_checkpointer()
-        async with checkpointer:
+        checkpointer_cm = await get_checkpointer()
+        async with checkpointer_cm as checkpointer:
+            await checkpointer.setup()
             runnable = await create_runnable(checkpointer)
             config = {"configurable": {"thread_id": thread_id}}
             final_state = await runnable.ainvoke(initial_state, config=config)
@@ -289,9 +316,11 @@ async def _run_research_agent(
             report=final_report,
             sources=sources_list,
             conflicts=conflicts_list,
-            critique={"overall_score": critique.overall_score, "summary": critique.summary}
-            if critique
-            else None,
+            critique=(
+                {"overall_score": critique.overall_score, "summary": critique.summary}
+                if critique
+                else None
+            ),
             iterations=iteration,
         )
 
@@ -299,17 +328,21 @@ async def _run_research_agent(
             "id": task_id,
             "query": query,
             "report": final_report,
-            "sources": [SourceOut(index=i, **s).model_dump() for i, s in enumerate(sources_list)],
+            "sources": [
+                SourceOut(index=i, **s).model_dump() for i, s in enumerate(sources_list)
+            ],
             "conflicts": [ConflictOut(**c).model_dump() for c in conflicts_list],
-            "critique": CritiqueOut(
-                overall_score=critique.overall_score,
-                gaps=critique.gaps,
-                diversity_issues=critique.diversity_issues,
-                suggestions=critique.suggestions,
-                summary=critique.summary,
-            ).model_dump()
-            if critique
-            else None,
+            "critique": (
+                CritiqueOut(
+                    overall_score=critique.overall_score,
+                    gaps=critique.gaps,
+                    diversity_issues=critique.diversity_issues,
+                    suggestions=critique.suggestions,
+                    summary=critique.summary,
+                ).model_dump()
+                if critique
+                else None
+            ),
             "iterations": iteration,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -328,7 +361,9 @@ async def _run_research_agent(
 
     except Exception as e:
         logger.exception("Research agent failed for task %s: %s", task_id, e)
-        await queue.put({"type": "error", "data": {"error": str(e), "type": "agent_error"}})
+        await queue.put(
+            {"type": "error", "data": {"error": str(e), "type": "agent_error"}}
+        )
         _tasks[task_id]["status"] = "failed"
     finally:
         await queue.put(None)

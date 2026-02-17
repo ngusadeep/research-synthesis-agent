@@ -27,18 +27,24 @@ async def _wikipedia_search(query: str, max_results: int = 3) -> list[dict[str, 
                 try:
                     page = wikipedia.page(title, auto_suggest=False)
                     content = page.content[:2000]
-                    results.append({
-                        "title": page.title,
-                        "content": content,
-                        "source": page.url,
-                        "source_type": "reference",
-                        "snippet": page.summary[:300],
-                        "metadata": {
-                            "page_id": page.pageid,
-                            "categories": page.categories[:10] if page.categories else [],
-                            "references_count": len(page.references) if page.references else 0,
-                        },
-                    })
+                    results.append(
+                        {
+                            "title": page.title,
+                            "content": content,
+                            "source": page.url,
+                            "source_type": "reference",
+                            "snippet": page.summary[:300],
+                            "metadata": {
+                                "page_id": page.pageid,
+                                "categories": (
+                                    page.categories[:10] if page.categories else []
+                                ),
+                                "references_count": (
+                                    len(page.references) if page.references else 0
+                                ),
+                            },
+                        }
+                    )
                 except (wikipedia.DisambiguationError, wikipedia.PageError) as e:
                     logger.warning("Wikipedia page error for %r: %s", title, e)
         except Exception as e:

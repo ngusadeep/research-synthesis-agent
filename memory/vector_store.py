@@ -24,9 +24,18 @@ class MemoryStore:
             path=settings.chroma_persist_directory,
             settings=ChromaSettings(anonymized_telemetry=False),
         )
-        self._reports = self._client.get_or_create_collection(name="reports", metadata={"hnsw:space": "cosine"})
-        self._credibility = self._client.get_or_create_collection(name="source_credibility", metadata={"hnsw:space": "cosine"})
-        logger.info("ChromaDB initialized at %s (reports: %s, credibility: %s)", settings.chroma_persist_directory, self._reports.count(), self._credibility.count())
+        self._reports = self._client.get_or_create_collection(
+            name="reports", metadata={"hnsw:space": "cosine"}
+        )
+        self._credibility = self._client.get_or_create_collection(
+            name="source_credibility", metadata={"hnsw:space": "cosine"}
+        )
+        logger.info(
+            "ChromaDB initialized at %s (reports: %s, credibility: %s)",
+            settings.chroma_persist_directory,
+            self._reports.count(),
+            self._credibility.count(),
+        )
 
     @property
     def reports(self) -> chromadb.Collection:
@@ -62,7 +71,9 @@ class MemoryStore:
 
     def get_report(self, report_id: str) -> dict | None:
         try:
-            result = self.reports.get(ids=[report_id], include=["documents", "metadatas"])
+            result = self.reports.get(
+                ids=[report_id], include=["documents", "metadatas"]
+            )
             if result and result["ids"]:
                 return {
                     "id": result["ids"][0],
@@ -86,12 +97,26 @@ class MemoryStore:
             items = []
             if results and results["ids"] and results["ids"][0]:
                 for i, rid in enumerate(results["ids"][0]):
-                    items.append({
-                        "id": rid,
-                        "query": results["documents"][0][i] if results["documents"] else "",
-                        "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                        "distance": results["distances"][0][i] if results["distances"] else 1.0,
-                    })
+                    items.append(
+                        {
+                            "id": rid,
+                            "query": (
+                                results["documents"][0][i]
+                                if results["documents"]
+                                else ""
+                            ),
+                            "metadata": (
+                                results["metadatas"][0][i]
+                                if results["metadatas"]
+                                else {}
+                            ),
+                            "distance": (
+                                results["distances"][0][i]
+                                if results["distances"]
+                                else 1.0
+                            ),
+                        }
+                    )
             return items
         except Exception as e:
             logger.error("Failed to find similar queries: %s", e)
@@ -102,29 +127,43 @@ class MemoryStore:
             total = self.reports.count()
             if total == 0:
                 return [], 0
-            result = self.reports.get(include=["documents", "metadatas"], limit=limit, offset=offset)
+            result = self.reports.get(
+                include=["documents", "metadatas"], limit=limit, offset=offset
+            )
             items = []
             if result and result["ids"]:
                 for i, rid in enumerate(result["ids"]):
                     meta = result["metadatas"][i] if result["metadatas"] else {}
-                    items.append({"id": rid, "query": result["documents"][i] if result["documents"] else "", "metadata": meta})
+                    items.append(
+                        {
+                            "id": rid,
+                            "query": (
+                                result["documents"][i] if result["documents"] else ""
+                            ),
+                            "metadata": meta,
+                        }
+                    )
             return items, total
         except Exception as e:
             logger.error("Failed to list reports: %s", e)
             return [], 0
 
-    def update_credibility(self, url: str, title: str, source_type: str, score: float) -> None:
+    def update_credibility(
+        self, url: str, title: str, source_type: str, score: float
+    ) -> None:
         try:
             self.credibility.upsert(
                 ids=[url[:512]],
                 documents=[f"{title} ({source_type})"],
-                metadatas=[{
-                    "url": url[:1000],
-                    "title": title[:500],
-                    "source_type": source_type,
-                    "credibility_score": score,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }],
+                metadatas=[
+                    {
+                        "url": url[:1000],
+                        "title": title[:500],
+                        "source_type": source_type,
+                        "credibility_score": score,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ],
             )
         except Exception as e:
             logger.error("Failed to update credibility for %s: %s", url, e)

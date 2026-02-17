@@ -10,7 +10,7 @@ from typing import Any
 import redis
 
 from config import settings
-from celery_app import app
+from worker.celery_app import app
 from worker.redis_events import (
     META_TTL_SECONDS,
     REDIS_META_KEY_PREFIX,
@@ -26,7 +26,9 @@ def _get_redis():
     return redis.from_url(settings.redis_url, decode_responses=True)
 
 
-def _publish_event(redis_client: redis.Redis, task_id: str, event_type: str, data: dict) -> None:
+def _publish_event(
+    redis_client: redis.Redis, task_id: str, event_type: str, data: dict
+) -> None:
     channel = f"{REDIS_STREAM_CHANNEL_PREFIX}{task_id}"
     payload = json.dumps({"type": event_type, "data": data})
     redis_client.publish(channel, payload)
@@ -37,7 +39,9 @@ def _set_task_meta(
 ) -> None:
     key = f"{REDIS_META_KEY_PREFIX}{task_id}"
     redis_client.setex(
-        key, META_TTL_SECONDS, json.dumps({"thread_id": thread_id, "thread_item_id": thread_item_id})
+        key,
+        META_TTL_SECONDS,
+        json.dumps({"thread_id": thread_id, "thread_item_id": thread_item_id}),
     )
 
 
@@ -83,9 +87,10 @@ async def _run_research_async(
         "_send_event": send_event,
     }
 
-    checkpointer = await get_checkpointer()
-    async with checkpointer:
-        runnable = await create_runnable(checkpointer)
+        checkpointer_cm = await get_checkpointer()
+        async with checkpointer_cm as checkpointer:
+            await checkpointer.setup()
+            runnable = await create_runnable(checkpointer)
         config = {"configurable": {"thread_id": thread_id}}
         final_state = await runnable.ainvoke(initial_state, config=config)
 
@@ -106,7 +111,13 @@ async def _run_research_async(
         for doc in documents
     ]
     conflicts_list = [
-        {"claim_a": c.claim_a, "source_a": c.source_a, "claim_b": c.claim_b, "source_b": c.source_b, "description": c.description}
+        {
+            "claim_a": c.claim_a,
+            "source_a": c.source_a,
+            "claim_b": c.claim_b,
+            "source_b": c.source_b,
+            "description": c.description,
+        }
         for c in conflicts
     ]
 
@@ -116,13 +127,20 @@ async def _run_research_async(
         report=final_report,
         sources=sources_list,
         conflicts=conflicts_list,
-        critique={"overall_score": critique.overall_score, "summary": critique.summary} if critique else None,
+        critique=(
+            {"overall_score": critique.overall_score, "summary": critique.summary}
+            if critique
+            else None
+        ),
         iterations=iteration,
     )
 
     for doc in documents:
         memory_store.update_credibility(
-            url=doc.source, title=doc.title, source_type=doc.source_type, score=doc.credibility_score
+            url=doc.source,
+            title=doc.title,
+            source_type=doc.source_type,
+            score=doc.credibility_score,
         )
 
     await send_event("done", {"type": "done", "status": "complete"})
@@ -153,4 +171,6 @@ def run_research_task(
         )
     except Exception as e:
         logger.exception("Research task %s failed: %s", task_id, e)
-        _publish_event(redis_client, task_id, "error", {"error": str(e), "type": "agent_error"})
+        _publish_event(
+            redis_client, task_id, "error", {"error": str(e), "type": "agent_error"}
+        )

@@ -6,7 +6,7 @@ import logging
 from typing import Literal
 
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from core.state import ResearchState
 from agents.planner import planner_node
@@ -25,7 +25,9 @@ def _should_continue(state: ResearchState) -> Literal["planner", "__end__"]:
         iteration = state.get("iteration", 1)
         max_iterations = state.get("max_iterations", 3)
         if iteration < max_iterations:
-            logger.info("Routing back to planner (iteration %s/%s)", iteration, max_iterations)
+            logger.info(
+                "Routing back to planner (iteration %s/%s)", iteration, max_iterations
+            )
             return "planner"
     return "__end__"
 
@@ -41,16 +43,20 @@ def build_graph() -> StateGraph:
     graph.add_edge("planner", "worker")
     graph.add_edge("worker", "synthesizer")
     graph.add_edge("synthesizer", "critic")
-    graph.add_conditional_edges("critic", _should_continue, {"planner": "planner", "__end__": END})
+    graph.add_conditional_edges(
+        "critic", _should_continue, {"planner": "planner", "__end__": END}
+    )
     return graph
 
 
-async def create_runnable(checkpointer: AsyncSqliteSaver | None = None):
+async def create_runnable(checkpointer: AsyncPostgresSaver | None = None):
     """Compile graph with optional checkpoint persistence."""
     graph = build_graph()
     return graph.compile(checkpointer=checkpointer) if checkpointer else graph.compile()
 
 
-async def get_checkpointer() -> AsyncSqliteSaver:
-    """Create async SQLite checkpointer for state persistence."""
-    return AsyncSqliteSaver.from_conn_string(settings.sqlite_checkpoint_path)
+async def get_checkpointer():
+    """Return Postgres checkpointer (async context manager). Call await checkpointer.setup() once inside the context."""
+    if not settings.database_url:
+        raise ValueError("DATABASE_URL is required for graph checkpoints")
+    return AsyncPostgresSaver.from_conn_string(settings.database_url)

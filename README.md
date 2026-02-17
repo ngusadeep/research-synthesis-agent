@@ -6,13 +6,14 @@ An autonomous research agent that takes a user query, plans sub-queries across m
 
 Backend at repo root (production-grade multi-agent layout):
 
-- **Root**: `main.py` (FastAPI app), `config.py` (settings)
-- **`core/`** — orchestration and state: `state.py` (global state schema), `graph.py` (LangGraph build, checkpointer)
+- **Root**: `main.py` (FastAPI app)
+- **`config/`** — settings (Pydantic, `.env`): `settings.py`
+- **`core/`** — orchestration and state: `state.py` (global state schema), `graph.py` (LangGraph + Postgres checkpointer)
 - **`agents/`** — specialized nodes: planner, worker, synthesizer, critic
 - **`tools/`** — schema-validated tools: arxiv, tavily, wikipedia, serpapi
 - **`memory/`** — long-term semantic memory (ChromaDB: reports, source credibility)
-- **`api/`** — FastAPI routes and Pydantic schemas (research, history, SSE streaming)
-- **`worker/`** — Celery task (runs research graph, publishes SSE events via Redis)
+- **`api/`** — routes (`routes.py`), schemas (`schemas/` request & response), models (`models/`)
+- **`worker/`** — Celery app (`celery_app.py`) and tasks (`tasks.py`); runs research graph, publishes SSE via Redis)
 
 **Modes:**
 - **Single-process** (no `REDIS_URL`): API runs the graph in-process; fine for low concurrency.
@@ -34,7 +35,7 @@ LangGraph StateGraph
        ↑___________________________|  (loop if needs refinement)
     ↓
 ChromaDB (reports + source credibility)
-SQLite   (graph checkpoints)
+Postgres (graph checkpoints)
 Redis    (broker + SSE pub/sub when distributed)
 ```
 
@@ -46,7 +47,7 @@ Redis    (broker + SSE pub/sub when distributed)
 - **Self-Critique Loop** — Critic evaluates gaps, diversity, and outdated info; loops back if score < 0.7
 - **Long-Term Memory** — ChromaDB persists past reports and tracks source credibility over time
 - **Real-Time Streaming** — SSE delivers agent steps, sources, and report text as they're produced
-- **Graph Checkpointing** — AsyncSqliteSaver enables recoverable state
+- **Graph Checkpointing** — Postgres checkpointer for recoverable state
 
 ## Tech Stack
 
@@ -55,7 +56,7 @@ Redis    (broker + SSE pub/sub when distributed)
 | Frontend   | Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui  |
 | Backend    | FastAPI, LangGraph, LangChain, OpenAI GPT-4o-mini             |
 | Search     | Tavily, ArXiv, Wikipedia, SerpAPI                              |
-| Storage    | ChromaDB (vector memory), SQLite (checkpoints), Redis (broker + pub/sub), Dexie (local) |
+| Storage    | ChromaDB (vector memory), Postgres (checkpoints), Redis (broker + pub/sub), Dexie (local) |
 | Tasks      | Celery (optional; use when `REDIS_URL` is set for distributed load)                      |
 | Streaming  | Server-Sent Events (SSE via sse-starlette)                                               |
 
@@ -70,10 +71,11 @@ Redis    (broker + SSE pub/sub when distributed)
 
 ### 1. Backend (from repo root)
 
+Requires Postgres (for graph checkpoints). Create a DB and set `DATABASE_URL` in `.env`.
+
 ```bash
-# From the project root
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env: OPENAI_API_KEY, TAVILY_API_KEY, SERPAPI_API_KEY, DATABASE_URL (e.g. postgresql://postgres:postgres@localhost:5432/research)
 
 uv sync
 uv run uvicorn main:app --reload --port 8000
@@ -128,11 +130,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- API: `http://localhost:8000`
-- Redis: internal on port 6379
-- Celery worker: 4 concurrent tasks by default (set in `docker-compose.yml`)
+- **Nginx**: `http://localhost` (port 80) — reverse proxy: `/api` → API, `/` → frontend
+- API (direct): `http://localhost:8000`
+- Frontend (direct): `http://localhost:3000`
+- Redis: internal 6379; Postgres: internal 5432
+- Celery worker: 4 concurrent tasks (set in `docker-compose.yml`)
 
-Data (ChromaDB, SQLite) is stored in the `app_data` volume. To scale workers: `docker compose up -d --scale celery_worker=2`.
+Data: ChromaDB/SQLite in `app_data`, Postgres in `postgres_data`. Scale workers: `docker compose up -d --scale celery_worker=2`.
 
 ## Environment Variables
 
@@ -144,7 +148,7 @@ Data (ChromaDB, SQLite) is stored in the `app_data` volume. To scale workers: `d
 | `TAVILY_API_KEY`         | Yes      | —              | Tavily search API key        |
 | `SERPAPI_API_KEY`        | No       | —              | SerpAPI key (fallback search)|
 | `CHROMA_PERSIST_DIRECTORY` | No     | `./chroma_db`  | ChromaDB storage path        |
-| `SQLITE_CHECKPOINT_PATH`  | No     | `./checkpoints.sqlite` | Graph checkpoints      |
+| `DATABASE_URL`            | Yes*   | —              | Postgres URL for graph checkpoints (e.g. `postgresql://postgres:postgres@localhost:5432/research`). |
 | `REDIS_URL`               | No     | —              | Redis URL for Celery + SSE (e.g. `redis://localhost:6379/0`). When set, research runs in workers. |
 | `OPENAI_MODEL`           | No       | `gpt-4o-mini`  | OpenAI model to use          |
 | `LANGSMITH_TRACING`      | No       | `false`        | Enable LangSmith tracing     |

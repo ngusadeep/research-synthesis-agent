@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 class TavilySearchInput(BaseModel):
     query: str = Field(description="Search query for web content")
     max_results: int = Field(default=5, description="Maximum number of results")
-    search_depth: str = Field(default="advanced", description="Search depth: basic or advanced")
+    search_depth: str = Field(
+        default="advanced", description="Search depth: basic or advanced"
+    )
 
 
 async def _tavily_search(
@@ -34,14 +36,19 @@ async def _tavily_search(
         )
         results = []
         for item in response.get("results", []):
-            results.append({
-                "title": item.get("title", ""),
-                "content": item.get("content", ""),
-                "source": item.get("url", ""),
-                "source_type": "news",
-                "snippet": item.get("content", "")[:300],
-                "metadata": {"score": item.get("score", 0), "published_date": item.get("published_date", "")},
-            })
+            results.append(
+                {
+                    "title": item.get("title", ""),
+                    "content": item.get("content", ""),
+                    "source": item.get("url", ""),
+                    "source_type": "news",
+                    "snippet": item.get("content", "")[:300],
+                    "metadata": {
+                        "score": item.get("score", 0),
+                        "published_date": item.get("published_date", ""),
+                    },
+                }
+            )
         return results
     except Exception as e:
         logger.error("Tavily search failed: %s", e)
