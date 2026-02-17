@@ -80,7 +80,7 @@ export const ExamplePrompts = () => {
     if (!editor) return null;
 
     return (
-        <div className="animate-fade-in mb-8 flex w-full flex-wrap justify-center gap-2 p-6 duration-[1000ms]">
+        <div className="animate-fade-in mb-8 flex w-full flex-wrap justify-center gap-2 p-6 duration-1000">
             {Object.entries(categoryIcons).map(([category, value], index) => (
                 <Button
                     key={index}

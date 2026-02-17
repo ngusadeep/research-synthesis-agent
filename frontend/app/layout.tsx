@@ -15,6 +15,7 @@ const bricolage = Bricolage_Grotesque({
 import './globals.css';
 
 export const metadata: Metadata = {
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://llmchat.co'),
     title: 'llmchat.co - Go Deeper with AI-Powered Research & Agentic Workflows',
     description:
         'Experience deep, AI-powered research with agentic workflows and a wide variety of models for advanced productivity.',

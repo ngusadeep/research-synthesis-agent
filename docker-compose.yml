@@ -2,7 +2,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: research
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -30,7 +30,7 @@ services:
   chroma:
     image: chromadb/chroma:latest
     ports:
-      - "8001:8000"
+      - "8011:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
@@ -54,6 +54,8 @@ services:
       chroma:
         condition: service_started
     command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8010:8000"
 
   celery_worker:
     build: .
@@ -79,13 +81,15 @@ services:
       dockerfile: Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: http://localhost/api
+    ports:
+      - "3080:3000"
     depends_on:
       - api
 
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
