@@ -12,6 +12,13 @@ import {
 } from '@tabler/icons-react';
 import { memo, useState } from 'react';
 
+type ResearchStepsProps = {
+    steps: Step[];
+    threadItem: ThreadItem;
+    /** When 'drawer', only the steps list is rendered (for the right-side pane). */
+    variant?: 'inline' | 'drawer';
+};
+
 /**
  * Collapsible "Agent Reasoning" panel that shows:
  * - Planner steps (sub-query generation)
@@ -19,7 +26,7 @@ import { memo, useState } from 'react';
  * - Critique iterations with scores
  */
 export const ResearchSteps = memo(
-    ({ steps, threadItem }: { steps: Step[]; threadItem: ThreadItem }) => {
+    ({ steps, threadItem, variant = 'inline' }: ResearchStepsProps) => {
         const [isExpanded, setIsExpanded] = useState(false);
 
         const isStopped = threadItem.status === 'ABORTED' || threadItem.status === 'ERROR';
@@ -27,6 +34,18 @@ export const ResearchSteps = memo(
         const completedCount = steps.filter(s => s.status === 'COMPLETED').length;
 
         if (steps.length === 0) return null;
+
+        const stepsList = (
+            <div className="flex flex-col gap-2">
+                {steps.map((step, index) => (
+                    <ResearchStepItem key={step.id || index} step={step} />
+                ))}
+            </div>
+        );
+
+        if (variant === 'drawer') {
+            return <div className="w-full px-1">{stepsList}</div>;
+        }
 
         return (
             <div className="w-full">
@@ -65,11 +84,7 @@ export const ResearchSteps = memo(
 
                 {isExpanded && (
                     <div className="border-border/50 mt-1 rounded-lg border p-3">
-                        <div className="flex flex-col gap-2">
-                            {steps.map((step, index) => (
-                                <ResearchStepItem key={step.id || index} step={step} />
-                            ))}
-                        </div>
+                        {stepsList}
                     </div>
                 )}
             </div>
@@ -78,6 +93,25 @@ export const ResearchSteps = memo(
 );
 
 ResearchSteps.displayName = 'ResearchSteps';
+
+/** Show step detail as readable text; never dump raw JSON. */
+function formatStepData(data: unknown): string {
+    if (data == null) return '—';
+    if (typeof data === 'string') return data;
+    if (typeof data !== 'object') return String(data);
+    const obj = data as Record<string, unknown>;
+    const text =
+        typeof obj.data === 'string'
+            ? obj.data
+            : typeof obj.text === 'string'
+              ? obj.text
+              : typeof obj.message === 'string'
+                ? obj.message
+                : typeof obj.description === 'string'
+                  ? obj.description
+                  : null;
+    return text ?? 'Step completed';
+}
 
 const ResearchStepItem = ({ step }: { step: Step }) => {
     const [showSubSteps, setShowSubSteps] = useState(false);
@@ -108,7 +142,7 @@ const ResearchStepItem = ({ step }: { step: Step }) => {
                         <div key={idx} className="flex flex-row items-center gap-2">
                             <StepStatusIcon status={sub.status} />
                             <p className="text-muted-foreground/70 text-xs">
-                                {typeof sub.data === 'string' ? sub.data : JSON.stringify(sub.data)}
+                                {formatStepData(sub.data)}
                             </p>
                         </div>
                     ))}

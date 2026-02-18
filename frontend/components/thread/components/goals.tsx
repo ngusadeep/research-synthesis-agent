@@ -2,6 +2,7 @@
 
 import { StepRenderer } from '../step-renderer';
 import { StepStatus } from '../step-status';
+import { ResearchSteps } from './research-steps';
 import { ToolCallStep } from './tool-call';
 import { ToolResultStep } from './tool-result';
 import { useAppStore } from '@/store';
@@ -76,11 +77,8 @@ export const Steps = ({ steps, threadItem }: { steps: Step[]; threadItem: Thread
             threadItem.status === 'ABORTED' ||
             threadItem.status === 'ERROR');
 
-    console.log('hasAnswer', hasAnswer);
-
     useEffect(() => {
         if (hasAnswer) {
-            console.log('dismissing side drawer');
             dismissSideDrawer();
         }
     }, [hasAnswer]);
@@ -103,16 +101,21 @@ export const Steps = ({ steps, threadItem }: { steps: Step[]; threadItem: Thread
 
     const stepCounts = steps.length;
 
+    const renderDrawerContent = () =>
+        threadItem.mode === ChatMode.Research ? (
+            <ResearchSteps steps={steps} threadItem={threadItem} variant="drawer" />
+        ) : (
+            <div className="flex w-full flex-1 flex-col px-2 py-4">
+                {steps.map((step, index) => (
+                    <StepRenderer key={index} step={step} />
+                ))}
+            </div>
+        );
+
     useEffect(() => {
         if (steps.length > 0) {
             updateSideDrawer({
-                renderContent: () => (
-                    <div className="flex w-full flex-1 flex-col px-2 py-4">
-                        {steps.map((step, index) => (
-                            <StepRenderer key={index} step={step} />
-                        ))}
-                    </div>
-                ),
+                renderContent: renderDrawerContent,
                 badge: stepCounts,
                 title: () => renderTitle(false),
             });
@@ -121,20 +124,10 @@ export const Steps = ({ steps, threadItem }: { steps: Step[]; threadItem: Thread
 
     const handleClick = () => {
         dismissSideDrawer();
-
         openSideDrawer({
             badge: stepCounts,
             title: () => renderTitle(false),
-            renderContent: () => (
-                <div className="flex w-full flex-1 flex-col px-2 py-4">
-                    {steps.map((step, index) => (
-                        <StepRenderer key={index} step={step} />
-                    ))}
-                    {/* {toolCallAndResults.map(({ toolCall, toolResult }) => (
-                        <ToolStep toolCall={toolCall} toolResult={toolResult} />
-                    ))} */}
-                </div>
-            ),
+            renderContent: renderDrawerContent,
         });
     };
 

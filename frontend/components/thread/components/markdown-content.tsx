@@ -78,9 +78,22 @@ export const removeIncompleteTags = (content: string) => {
 // New function to normalize content before serialization
 export const normalizeContent = (content: string) => {
     // Replace literal "\n" strings with actual newlines
-    // This handles cases where newlines are escaped in the string
-    return content.replace(/\\n/g, '\n');
+    let out = content.replace(/\\n/g, '\n');
+    // Remove trailing conflicts JSON block (synthesizer adds "---" then ```json {"conflicts": [...]} ```)
+    out = stripTrailingConflictJson(out);
+    return out;
 };
+
+/** Strip the trailing --- and ```json {"conflicts": ...} ``` block so it is not shown as raw JSON. */
+export function stripTrailingConflictJson(content: string): string {
+    if (!content || !content.trim()) return content;
+    // Match optional "---" and newlines, then ```json ... ``` at end
+    const withSeparator = /\n---\s*\n\s*```json[\s\S]*?```\s*$/m;
+    const jsonOnly = /\n\s*```json[\s\S]*?```\s*$/m;
+    let out = content.replace(withSeparator, '').trimEnd();
+    if (out === content) out = content.replace(jsonOnly, '').trimEnd();
+    return out;
+}
 
 function parseCitationsWithSourceTags(markdown: string): string {
     // Basic single citation regex
